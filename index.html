@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ping Watch — Browser Connection Monitor</title>
-<meta name="description" content="Ping Watch is a browser-based connection monitor: HTTP latency tracking, a live graph, outage history and an approximate speed test. Everything runs locally — no backend, no accounts, no data leaves your machine.">
+<meta name="description" content="Ping Watch is a browser-based connection monitor: HTTP latency tracking, a live graph, outage history and an internet speed test. Everything runs locally — no backend, no accounts, no data leaves your machine.">
 <meta name="theme-color" content="#050a18">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='34' fill='none' stroke='%235ad1e6' stroke-width='10'/><circle cx='50' cy='50' r='10' fill='%23a6fff2'/></svg>">
 <style>
@@ -30,7 +30,12 @@ button{font:inherit;color:inherit}
 input,select{font:inherit;color:inherit}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
 
-.app{position:fixed;inset:0;display:grid;grid-template-columns:1fr minmax(360px,440px)}
+.app{position:fixed;inset:0;display:grid;grid-template-columns:minmax(0,1fr) 10px var(--panel-width,minmax(320px,min(42vw,600px)));transition:filter .25s ease}
+.app.offline-mode{filter:grayscale(.35) brightness(.84)}
+.resize-handle{position:relative;z-index:8;cursor:col-resize;touch-action:none;outline:none}
+.resize-handle::after{content:"";position:absolute;top:0;bottom:0;left:4px;width:2px;background:var(--line);transition:background-color .15s,transform .15s}
+.resize-handle:hover::after,.resize-handle:focus-visible::after,.app.resizing .resize-handle::after{background:var(--land);transform:scaleX(1.5)}
+.app.resizing,.app.resizing *{cursor:col-resize!important;user-select:none!important}
 .stage{position:relative;overflow:hidden;min-width:0}
 #globe{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
 #globe.drag{cursor:grab}
@@ -61,7 +66,6 @@ input,select{font:inherit;color:inherit}
 .speedcard .sptitle{font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--dim)}
 .speedcard .scard{background:rgba(255,255,255,.03)}
 .speedcard .bar{position:relative}
-.hint{position:absolute;right:clamp(16px,2vw,28px);bottom:clamp(18px,4vh,36px);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);z-index:2;pointer-events:none;text-align:right;line-height:1.8}
 
 /* ---------- side panel ---------- */
 .panel{position:relative;z-index:4;border-left:1px solid var(--line);background:linear-gradient(180deg,rgba(12,22,46,.72),rgba(6,12,28,.9));backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);padding:26px 24px 22px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;overflow-x:hidden;min-width:0}
@@ -90,7 +94,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .winsel button{padding:4px 9px;border-radius:999px;border:1px solid transparent;background:none;font-size:10px;letter-spacing:.12em;color:var(--dim);cursor:pointer}
 .winsel button:hover{color:var(--fg)}
 .winsel button[aria-pressed="true"]{border-color:rgba(166,255,242,.45);color:var(--land2)}
-#graph{display:block;width:100%;height:170px;cursor:crosshair}
+#graph{display:block;width:100%;height:210px;cursor:crosshair}
 .gwrap{position:relative}
 .gtip{position:absolute;left:0;top:0;z-index:5;pointer-events:none;padding:7px 10px 8px;border-radius:8px;background:rgba(8,16,36,.88);border:1px solid rgba(166,255,242,.35);opacity:0;transition:opacity .12s;white-space:nowrap;box-shadow:0 10px 30px rgba(0,0,0,.4)}
 .gtip.on{opacity:1}
@@ -98,7 +102,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .gtip span{display:block;font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:2px}
 .gtip.off b{color:var(--coral)}
 
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:13px 14px;padding-top:14px;border-top:1px solid var(--line)}
+.grid2{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px 14px;padding-top:14px;border-top:1px solid var(--line)}
 .stat .lbl{display:block;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim)}
 .stat b{display:block;font-weight:400;font-family:var(--mono);font-size:17px;margin-top:5px;letter-spacing:-.01em;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .stat b.good{color:var(--land2)}
@@ -124,10 +128,11 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .scard .val small{font-size:12px;color:var(--dim);margin-left:4px}
 .scard .bar{position:relative;height:4px;border-radius:2px;background:rgba(120,170,220,.16);margin-top:20px}
 .scard .bar i{display:block;height:100%;width:0%;background:linear-gradient(90deg,var(--gold),var(--land2));border-radius:2px;transition:width .25s var(--ease)}
-.scard .bar .peak{position:absolute;top:-14px;right:0;transform:translateX(0);font-family:var(--mono);font-weight:400;font-size:9px;line-height:1;color:var(--gold);background:none;border:0;padding:0;white-space:nowrap}
+.scard .bar .peak{position:absolute;top:-18px;right:0;text-align:right;transform:translateY(-4px);font-family:var(--mono);font-weight:400;font-size:9px;line-height:1;color:var(--gold);background:none;border:0;padding:0;white-space:nowrap}
 
 @media (max-width:860px){
   .app{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto}
+  .resize-handle{display:none}
   .stage{min-height:0}
   .panel{border-left:0;border-top:1px solid var(--line);padding:14px 16px 16px;gap:10px;max-height:52svh}
   .title{top:14px;left:16px}
@@ -137,7 +142,6 @@ button:disabled{opacity:.45;cursor:not-allowed}
   .readout .ms{font-size:34px}
   .readout .pill{padding:6px 11px;font-size:10px}
   .target{font-size:10.5px}
-  .hint{display:none}
   .speedcard{left:16px;bottom:12px;width:min(300px,calc(100vw - 32px));padding:10px 12px}
   #graph{height:130px}
   .grid2{gap:9px 12px;padding-top:10px}
@@ -150,7 +154,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
 </style>
 </head>
 <body>
-<div class="app">
+<div class="app" id="app">
   <main class="stage" id="stage" data-state="idle">
     <canvas id="globe" tabindex="0" role="img" aria-label="Rotating dot-matrix globe. Drag to rotate."></canvas>
     <div class="title">
@@ -166,7 +170,6 @@ button:disabled{opacity:.45;cursor:not-allowed}
     <div class="speedcard" aria-label="Internet speed test">
       <div class="sphead">
         <span class="sptitle">Internet speed test</span>
-        <span class="approx">approximate</span>
       </div>
       <div class="speed">
         <div class="scard">
@@ -181,15 +184,15 @@ button:disabled{opacity:.45;cursor:not-allowed}
         </div>
       </div>
     </div>
-    <div class="hint" aria-hidden="true">Drag to spin<br>Monitoring runs while this tab is open</div>
   </main>
 
+  <div class="resize-handle" id="resizeHandle" role="separator" aria-orientation="vertical" aria-label="Resize sidebar" aria-valuemin="320" aria-valuemax="900" aria-valuenow="440" tabindex="0"></div>
   <aside class="panel" aria-label="Ping Watch controls and statistics">
     <header><h2>Monitor</h2></header>
 
     <div class="field">
       <label for="url">URL to monitor</label>
-      <input id="url" type="url" spellcheck="false" autocomplete="off" value="https://www.gstatic.com/generate_204" placeholder="https://example.com">
+      <input id="url" type="url" spellcheck="false" autocomplete="off" placeholder="https://example.com">
     </div>
     <div class="controls">
       <div class="field" style="margin:0">
@@ -204,9 +207,13 @@ button:disabled{opacity:.45;cursor:not-allowed}
       <div class="field" style="margin:0">
         <label for="window">Graph window</label>
         <select id="window" style="width:100%">
+          <option value="30000">30 sec</option>
           <option value="60000">1 min</option>
+          <option value="120000">2 min</option>
           <option value="300000">5 min</option>
-          <option value="900000">15 min</option>
+          <option value="600000">10 min</option>
+          <option value="1800000">30 min</option>
+          <option value="3600000">1h</option>
           <option value="0" selected>All</option>
         </select>
       </div>
@@ -234,8 +241,6 @@ button:disabled{opacity:.45;cursor:not-allowed}
       <div class="stat"><span class="lbl">Outages</span><b id="sOut">0</b></div>
       <div class="stat"><span class="lbl">Outage time</span><b id="sOutT">0 s</b></div>
       <div class="stat"><span class="lbl">Monitoring for</span><b id="sDur">0 s</b></div>
-      <div class="stat"><span class="lbl">Checks</span><b id="sChk">0</b></div>
-      <div class="stat"><span class="lbl">Failed checks</span><b id="sFail">0</b></div>
     </div>
 
     <h3>Outage history</h3>
@@ -249,12 +254,83 @@ button:disabled{opacity:.45;cursor:not-allowed}
 (function(){
 'use strict';
 var doc = document;
+var app=doc.getElementById('app');
 var TAU = Math.PI * 2, D2R = Math.PI / 180;
 function clamp(v,a,b){ return v < a ? a : v > b ? b : v; }
 function lerp(a,b,t){ return a + (b-a)*t; }
 function hx(h){ return [parseInt(h.substr(1,2),16),parseInt(h.substr(3,2),16),parseInt(h.substr(5,2),16)]; }
 function mix(a,b,t){ return [Math.round(lerp(a[0],b[0],t)),Math.round(lerp(a[1],b[1],t)),Math.round(lerp(a[2],b[2],t))]; }
 var RM = window.matchMedia('(prefers-reduced-motion: reduce)');
+var offlineMode=false;
+var detectedOffline=('onLine' in navigator)?!navigator.onLine:false;
+var offlineOverride=null;
+function applyOfflineMode(){
+  var next=offlineOverride===null?detectedOffline:offlineOverride;
+  if(offlineMode===next) return;
+  offlineMode=next;
+  app.classList.toggle('offline-mode',offlineMode);
+  if(offlineMode){
+    vLon=vLat=0; fly=null; drag=null; cv.classList.remove('drag');
+    arcs.length=0; rings.length=0; pendingArcs=0; spawnT=0;
+  }
+}
+function setOfflineMode(value){
+  if(arguments.length===0) offlineOverride=null;
+  else if(typeof value==='boolean') offlineOverride=value;
+  else throw new TypeError('setOfflineMode expects true, false, or no argument to restore automatic detection');
+  applyOfflineMode();
+  return offlineMode;
+}
+window.setOfflineMode=setOfflineMode;
+var resizeHandle=doc.getElementById('resizeHandle');
+var panel=doc.querySelector('.panel');
+var resizeStartX=0,resizeStartWidth=0,resizePreviousCursor='';
+function currentPanelWidth(){ return panel.getBoundingClientRect().width; }
+function setPanelWidth(width){
+  var appWidth=app.getBoundingClientRect().width;
+  var maxWidth=Math.max(320,Math.min(900,appWidth-210));
+  var next=clamp(width,320,maxWidth);
+  app.style.setProperty('--panel-width',next+'px');
+  resizeHandle.setAttribute('aria-valuemax',String(Math.round(maxWidth)));
+  resizeHandle.setAttribute('aria-valuenow',String(Math.round(next)));
+  layout();
+  graphLayout();
+}
+function updateResizeValue(){
+  if(window.innerWidth>860){
+    var maxWidth=Math.max(320,Math.min(900,app.getBoundingClientRect().width-210));
+    resizeHandle.setAttribute('aria-valuemax',String(Math.round(maxWidth)));
+    resizeHandle.setAttribute('aria-valuenow',String(Math.round(currentPanelWidth())));
+  }
+}
+resizeHandle.addEventListener('pointerdown',function(e){
+  if(window.innerWidth<=860||e.button!==0) return;
+  resizeStartX=e.clientX;
+  resizeStartWidth=currentPanelWidth();
+  resizePreviousCursor=doc.body.style.cursor;
+  doc.body.style.cursor='col-resize';
+  app.classList.add('resizing');
+  resizeHandle.setPointerCapture(e.pointerId);
+  e.preventDefault();
+});
+resizeHandle.addEventListener('pointermove',function(e){
+  if(!app.classList.contains('resizing')) return;
+  setPanelWidth(resizeStartWidth+resizeStartX-e.clientX);
+});
+function endResize(){
+  if(!app.classList.contains('resizing')) return;
+  app.classList.remove('resizing');
+  doc.body.style.cursor=resizePreviousCursor;
+}
+resizeHandle.addEventListener('pointerup',endResize);
+resizeHandle.addEventListener('pointercancel',endResize);
+resizeHandle.addEventListener('keydown',function(e){
+  if(e.key==='ArrowLeft'){ setPanelWidth(currentPanelWidth()+20); e.preventDefault(); }
+  else if(e.key==='ArrowRight'){ setPanelWidth(currentPanelWidth()-20); e.preventDefault(); }
+  else if(e.key==='Home'){ setPanelWidth(900); e.preventDefault(); }
+  else if(e.key==='End'){ setPanelWidth(320); e.preventDefault(); }
+});
+window.addEventListener('resize',updateResizeValue);
 
 /* ============================================================
    THE GLOBE — dot-matrix sphere, land mask, probe arcs
@@ -332,7 +408,7 @@ function buildStars(){
 var LAND_A=hx('#5ad1e6'), LAND_B=hx('#a6fff2');
 var CYAN=hx('#5ad1e6'), GREY=hx('#8a97a8');
 var ICE=hx('#a6fff2');
-var GOLD=[255,209,102], CORAL=[255,111,97];
+var GOLD=[255,209,102], GREEN=[61,220,132], CORAL=[255,111,97];
 var BUCKETS=8, LAND_COL=[];
 (function(){ for(var b=0;b<BUCKETS;b++){ var t=b/(BUCKETS-1); LAND_COL.push(mix(LAND_A,LAND_B,t)); } })();
 var LIGHT=(function(){ var v=[-0.45,0.55,0.7], l=Math.hypot(v[0],v[1],v[2]); return [v[0]/l,v[1]/l,v[2]/l]; })();
@@ -366,7 +442,7 @@ var P=[0,0,0];
 function drawArc(ar){
   var head=Math.min(1,ar.t), tailLen=0.32, t0=Math.max(0,head-tailLen);
   var fade=ar.t>1?clamp(1-(ar.t-1)/0.35,0,1):1;
-  var col=ar.gold?GOLD:CORAL;
+  var col=ar.gold?GOLD:GREEN;
   var steps=28,i,u,sx,sy,px=0,py=0,pv=false;
   ctx.lineWidth=1;
   ctx.strokeStyle='rgba('+col[0]+','+col[1]+','+col[2]+','+(0.13*fade)+')';
@@ -416,13 +492,13 @@ function layout(){
 /* drag to spin */
 var drag=null;
 cv.addEventListener('pointerdown',function(e){
-  if(e.button>0) return;
+  if(offlineMode||e.button>0) return;
   drag={id:e.pointerId,x:e.clientX,y:e.clientY,x0:e.clientX,y0:e.clientY,t:performance.now(),moved:false};
   try{ cv.setPointerCapture(e.pointerId); }catch(err){}
   vLon=vLat=0; fly=null; lastInput=performance.now();
 });
 cv.addEventListener('pointermove',function(e){
-  if(drag&&e.pointerId===drag.id){
+  if(!offlineMode&&drag&&e.pointerId===drag.id){
     var dx=e.clientX-drag.x, dy=e.clientY-drag.y;
     if(Math.abs(e.clientX-drag.x0)+Math.abs(e.clientY-drag.y0)>4){ drag.moved=true; cv.classList.add('drag'); }
     var k=57.3/R;
@@ -444,6 +520,7 @@ function endDrag(e){
 cv.addEventListener('pointerup',endDrag);
 cv.addEventListener('pointercancel',endDrag);
 cv.addEventListener('keydown',function(e){
+  if(offlineMode) return;
   var step=e.shiftKey?20:8;
   if(e.key==='ArrowLeft') lon0+=step;
   else if(e.key==='ArrowRight') lon0-=step;
@@ -460,39 +537,40 @@ function frame(now){
   requestAnimationFrame(frame);
   if(doc.hidden){ last=now; return; }
   var dt=Math.min(50,now-last); last=now;
-  if(fly){
-    fly.t+=dt/fly.dur;
-    var e=ease(Math.min(1,fly.t));
-    lon0=lerp(fly.l0,fly.l1,e); lat0=lerp(fly.p0,fly.p1,e);
-    if(fly.t>=1) fly=null;
-  } else if(!drag){
-    lon0+=vLon*dt/16; lat0=clamp(lat0+vLat*dt/16,-70,70);
-    vLon*=Math.pow(0.94,dt/16); vLat*=Math.pow(0.94,dt/16);
-    var idle=now-lastInput;
-    var want=(autoSpin&&!RM.matches&&idle>3500)?1:0;
-    spinK=lerp(spinK,want,0.02);
-    lon0-=spinK*dt*0.0055;
-    if(want&&Math.abs(vLat)<0.01) lat0=lerp(lat0,16,0.004*spinK);
-  }
-  lon0=((lon0+540)%360)-180;
-  prepRot();
-  /* ambient arcs + one golden arc per successful check (queued);
-     everything freezes while the connection is down */
-  var alive=healthTarget<0.5;
-  spawnT+=dt;
-  var rate=W<560?640:460;
-  while(spawnT>rate){ spawnT-=rate; if(alive&&arcs.length<22) spawnArc(null,null,0,false); }
-  if(pendingArcs>0&&alive&&arcs.length<26){ spawnArc(null,null,0,true); pendingArcs--; }
-  for(var a=arcs.length-1;a>=0;a--){
-    var ar=arcs[a];
-    ar.t+=dt/ar.dur;
-    if(!ar.done&&ar.t>=1){
-      ar.done=true;
-      rings.push({c:ar.b,t:0,gold:ar.gold});
+  if(!offlineMode){
+    if(fly){
+      fly.t+=dt/fly.dur;
+      var e=ease(Math.min(1,fly.t));
+      lon0=lerp(fly.l0,fly.l1,e); lat0=lerp(fly.p0,fly.p1,e);
+      if(fly.t>=1) fly=null;
+    } else if(!drag){
+      lon0+=vLon*dt/16; lat0=clamp(lat0+vLat*dt/16,-70,70);
+      vLon*=Math.pow(0.94,dt/16); vLat*=Math.pow(0.94,dt/16);
+      var idle=now-lastInput;
+      var want=(autoSpin&&!RM.matches&&idle>3500)?1:0;
+      spinK=lerp(spinK,want,0.02);
+      lon0-=spinK*dt*0.0055;
+      if(want&&Math.abs(vLat)<0.01) lat0=lerp(lat0,16,0.004*spinK);
     }
-    if(ar.t>=1.35) arcs.splice(a,1);
+    lon0=((lon0+540)%360)-180;
+    prepRot();
+    /* ambient arcs + one golden arc per successful check (queued) */
+    var alive=healthTarget<0.5;
+    spawnT+=dt;
+    var rate=W<560?640:460;
+    while(spawnT>rate){ spawnT-=rate; if(alive&&arcs.length<22) spawnArc(null,null,0,false); }
+    if(pendingArcs>0&&alive&&arcs.length<26){ spawnArc(null,null,0,true); pendingArcs--; }
+    for(var a=arcs.length-1;a>=0;a--){
+      var ar=arcs[a];
+      ar.t+=dt/ar.dur*0.85;
+      if(!ar.done&&ar.t>=1){
+        ar.done=true;
+        rings.push({c:ar.b,t:0,gold:ar.gold});
+      }
+      if(ar.t>=1.35) arcs.splice(a,1);
+    }
+    for(var q=rings.length-1;q>=0;q--){ rings[q].t+=dt/1300*0.85; if(rings[q].t>=1) rings.splice(q,1); }
   }
-  for(var q=rings.length-1;q>=0;q--){ rings[q].t+=dt/1300; if(rings[q].t>=1) rings.splice(q,1); }
   draw();
 }
 function draw(){
@@ -568,7 +646,7 @@ function draw(){
     v=rot(cc.v[0],cc.v[1],cc.v[2]);
     if(v[2]<=0.05) continue;
     var k=rg.t, rad=4+k*26*Math.max(0.8,R/300);
-    var col=rg.gold?GOLD:CORAL;
+    var col=rg.gold?GOLD:GREEN;
     ctx.strokeStyle='rgba('+col[0]+','+col[1]+','+col[2]+','+((1-k)*0.9)+')';
     ctx.lineWidth=1.6*(1-k)+0.4;
     ctx.beginPath(); ctx.ellipse(CX+v[0]*R,CY-v[1]*R,rad,rad*(0.35+0.65*v[2]),0,0,TAU); ctx.stroke();
@@ -587,14 +665,16 @@ var stateTxt=doc.getElementById('stateTxt'), curLatEl=doc.getElementById('curLat
     targetTxt=doc.getElementById('targetTxt'), reasonTxt=doc.getElementById('reasonTxt');
 var sAvg=doc.getElementById('sAvg'), sMinMax=doc.getElementById('sMinMax'), sUp=doc.getElementById('sUp'),
     sOut=doc.getElementById('sOut'), sOutT=doc.getElementById('sOutT'), sDur=doc.getElementById('sDur'),
-    sChk=doc.getElementById('sChk'), sFail=doc.getElementById('sFail'), sampleCount=doc.getElementById('sampleCount');
+    sampleCount=doc.getElementById('sampleCount');
 var outageList=doc.getElementById('outageList'), outageEmpty=doc.getElementById('outageEmpty');
 
-var running=false, checking=false, timer=null;
+var running=false, checking=false, timer=null, warmupRemaining=0;
 var target='', intervalMs=1000;
+var DEFAULT_TARGET='https://www.gstatic.com/generate_204';
+var usingDefaultTarget=false;
 var samples=[];            /* {t: epoch ms, ms: number|null, reason: string|undefined} */
 var outages=[];            /* {start, end|null} */
-var checks=0, fails=0, okCount=0, sumMs=0, minMs=Infinity, maxMs=-Infinity;
+var okCount=0, sumMs=0, minMs=Infinity, maxMs=-Infinity;
 var runAccum=0, runStart=0;
 var lastOnline=null;       /* navigator.onLine at last check */
 var MAX_SAMPLES=24000;
@@ -602,7 +682,7 @@ var pendingArcsGlobal=null;
 
 function nowMs(){ return Date.now(); }
 function monitoringDuration(){
-  return runAccum + (running ? nowMs()-runStart : 0);
+  return runAccum + (running&&runStart ? nowMs()-runStart : 0);
 }
 function totalOutageMs(){
   var t=0;
@@ -633,9 +713,18 @@ function normalizeUrl(raw){
   if(!/^[a-z][a-z0-9+.-]*:\/\//i.test(s)) s='https://'+s;
   try{ var u=new URL(s); if(u.protocol!=='http:'&&u.protocol!=='https:') return null; return u.href; }catch(e){ return null; }
 }
-/* navigator.onLine is read as supplementary info inside doCheck(); no UI banner. */
+function updateDetectedOffline(res){
+  if(res.ok) detectedOffline=false;
+  else if(lastOnline===false||usingDefaultTarget) detectedOffline=true;
+  applyOfflineMode();
+}
 window.addEventListener('offline',function(){
-  /* While offline, an in-flight check will fail on its own; nothing else to do. */
+  detectedOffline=true;
+  applyOfflineMode();
+});
+window.addEventListener('online',function(){
+  detectedOffline=false;
+  applyOfflineMode();
 });
 
 /* One latency check. mode:'no-cors' means CORS headers never fail the request —
@@ -671,7 +760,16 @@ function tick(){
   checking=true;
   doCheck().then(function(res){
     checking=false;
-    recordSample(res);
+    if(warmupRemaining){
+      updateDetectedOffline(res);
+      warmupRemaining--;
+      if(!warmupRemaining&&running){
+        runStart=nowMs();
+        paintStats();
+      }
+    } else {
+      recordSample(res);
+    }
     if(running) schedule();
   });
 }
@@ -680,7 +778,6 @@ function schedule(){
   timer=setTimeout(tick,intervalMs);
 }
 function recordSample(res){
-  checks++;
   var t=nowMs();
   if(res.ok){
     okCount++; sumMs+=res.ms;
@@ -692,7 +789,6 @@ function recordSample(res){
     }
     pendingArcs++;  /* golden probe arc on the globe */
   } else {
-    fails++;
     var open=outages.length&&outages[outages.length-1].end==null;
     if(!open) outages.push({start:t,end:null});
   }
@@ -704,6 +800,7 @@ function recordSample(res){
   graphDirty=true;
 }
 function paintStatus(res){
+  updateDetectedOffline(res);
   var ok=res&&res.ok;
   stage.dataset.state=ok?'on':'off';
   stateTxt.textContent=ok?'Online':'Offline';
@@ -714,7 +811,7 @@ function paintStatus(res){
     curLatEl.textContent='—';
     reasonTxt.textContent=(res&&res.reason?('last check: '+res.reason):'')+(lastOnline===false?' · navigator.onLine = false':'');
   }
-  targetTxt.textContent=target?target.replace(/^https?:\/\//,''):'no target yet';
+  targetTxt.textContent=target?(usingDefaultTarget?'Default connection check':target.replace(/^https?:\/\//,'')):'no target yet';
   healthTarget=ok?0:(res?1:healthTarget);
   graphDirty=true;
 }
@@ -731,8 +828,6 @@ function paintStats(){
   sOut.className=outages.length?'stat-b bad':'stat-b';
   sOutT.textContent=fmtDur(outT);
   sDur.textContent=fmtDur(dur);
-  sChk.textContent=String(checks);
-  sFail.textContent=String(fails);
   sampleCount.textContent=samples.length?samples.length+' samples':'';
 }
 sOut.className=''; /* styling handled inline below */
@@ -763,17 +858,23 @@ setInterval(function(){
    automatically — no start/stop button. Clear stops everything and wipes
    the session. */
 function startMonitoring(){
-  var href=normalizeUrl(urlIn.value);
+  var rawUrl=urlIn.value.trim();
+  var href=rawUrl?normalizeUrl(rawUrl):DEFAULT_TARGET;
   if(!href){
     urlIn.classList.add('err');
     return;
   }
   urlIn.classList.remove('err');
+  usingDefaultTarget=!rawUrl;
   var isNewTarget=(href!==target);
   target=href;
   intervalMs=parseInt(intSel.value,10)||1000;
+  if(!running||isNewTarget){
+    if(runStart){ runAccum+=nowMs()-runStart; runStart=0; }
+    warmupRemaining=2;
+  }
   if(!running){
-    running=true; runStart=nowMs();
+    running=true;
   }
   paintStats();
   if(isNewTarget){
@@ -794,12 +895,12 @@ function stopMonitoring(){
 }
 urlIn.addEventListener('input',function(){
   urlIn.classList.remove('err');
-  if(normalizeUrl(urlIn.value)) startMonitoring();
+  if(!urlIn.value.trim()||normalizeUrl(urlIn.value)) startMonitoring();
 });
 urlIn.addEventListener('keydown',function(e){
   if(e.key==='Enter'){
     e.preventDefault();
-    if(normalizeUrl(urlIn.value)) startMonitoring();
+    if(!urlIn.value.trim()||normalizeUrl(urlIn.value)) startMonitoring();
     else urlIn.classList.add('err');
   }
 });
@@ -809,8 +910,8 @@ intSel.addEventListener('change',function(){
 });
 clearB.addEventListener('click',function(){
   stopMonitoring();
-  samples=[]; outages=[]; checks=0; fails=0; okCount=0; sumMs=0;
-  minMs=Infinity; maxMs=-Infinity; runAccum=0; runStart=0; lastOnline=null;
+  samples=[]; outages=[]; okCount=0; sumMs=0;
+  minMs=Infinity; maxMs=-Infinity; runAccum=0; runStart=0; lastOnline=null; warmupRemaining=0;
   stage.dataset.state='idle';
   stateTxt.textContent='Idle';
   curLatEl.textContent='—';
@@ -1047,7 +1148,6 @@ function setPeak(peakEl,barEl,val,peak){
   /* track scale runs 0..peak; the peak number sits at the right end */
   var pct=peak>0?clamp(val/peak*100,0,100):0;
   barEl.style.width=pct.toFixed(1)+'%';
-  peakEl.style.left='100%';
   peakEl.textContent=fmtMbps(peak);
 }
 function warmUp(){
@@ -1159,15 +1259,17 @@ function scheduleSpeedTest(){
    ============================================================ */
 layout();
 graphLayout();
+updateResizeValue();
 paintStats();
 paintOutages();
 /* auto-start monitoring the default URL right away */
-if(normalizeUrl(urlIn.value)) startMonitoring();
+startMonitoring();
 /* auto-start the speed test loop — first cycle waits 2 s so the page
    settles (and the first latency checks run) without interference */
 if(speedTimer) clearTimeout(speedTimer);
 speedTimer=setTimeout(runSpeedTest,2000);
 for(var s0=0;s0<12;s0++) spawnArc(null,null,Math.random()*0.9,false);
+applyOfflineMode();
 requestAnimationFrame(frame);
 })();
 </script>
